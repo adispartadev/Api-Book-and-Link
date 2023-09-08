@@ -1,9 +1,14 @@
 package entity
 
-import "github.com/golang-jwt/jwt/v5"
+import (
+	"api.go/model"
+	"github.com/golang-jwt/jwt/v5"
+	"time"
+)
 
 type JwtClaims struct {
-	IdUser    int    `json:"id_user"`
-	KodeAkses string `json:"kode_akses"`
+	Id          int `json:"id"`
+	User        model.User
+	GeneratedAt time.Time
 	jwt.RegisteredClaims
 }

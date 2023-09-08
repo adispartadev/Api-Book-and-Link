@@ -12,7 +12,6 @@ import (
 	"time"
 )
 
-// Register User
 func RegisterUser(c *fiber.Ctx) error {
 
 	user := model.User{}
@@ -20,12 +19,20 @@ func RegisterUser(c *fiber.Ctx) error {
 		return services.ApiJsonResponse(c, entity.Error, "Error occurred", err)
 	}
 
+	var db = database.GetDbInstance()
+
+	// validating email
+	var userExists model.User
+	db.Where("email = ?", user.Email).First(&userExists)
+	if userExists.Id != 0 {
+		return services.ApiJsonResponse(c, entity.Error, "Email is already used", nil)
+	}
+
+	// saving user
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), 14)
 	if err != nil {
 		return services.ApiJsonResponse(c, entity.Error, "Error occurred", err.Error())
 	}
-
-	var db = database.GetDbInstance()
 	user.Password = string(hashedPassword)
 	db.Save(&user)
 	return services.ApiJsonResponse(c, entity.Success, "Registered successfully", nil)
@@ -59,7 +66,9 @@ func LoginUser(c *fiber.Ctx) error {
 	var jwtKey = []byte(secret)
 
 	claims := &entity.JwtClaims{
-		IdUser: int(user.Id),
+		Id:          int(user.Id),
+		User:        user,
+		GeneratedAt: time.Now(),
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 		},
@@ -75,4 +84,61 @@ func LoginUser(c *fiber.Ctx) error {
 		"token": tokenString,
 		"user":  user,
 	})
+}
+
+func ForgotPassword(c *fiber.Ctx) error {
+	formData := model.User{}
+	if err := c.BodyParser(&formData); err != nil {
+		return services.ApiJsonResponse(c, entity.Error, "Error occurred", err.Error())
+	}
+
+	// get user by email
+	var user model.User
+	var db = database.GetDbInstance()
+	db.Where("email = ?", formData.Email).First(&user)
+
+	if user.Id == 0 {
+		return services.ApiJsonResponse(c, entity.Error, "User not found", nil)
+	}
+
+	var randString = services.RandSeq(10)
+	user.PasswordToken = randString
+	db.Save(&user)
+
+	var link = os.Getenv("FRONT_PAGE_BASE_URL") + "/reset-password/" + randString
+	err := services.SendEmail(user.Email, "Forgot Password", "Please open "+link+" to reset your password.")
+	if err != nil {
+		return services.ApiJsonResponse(c, entity.Error, "Error occurred", err.Error())
+	}
+	return services.ApiJsonResponse(c, entity.Success, "Please open your email for password recovery", nil)
+}
+
+func ResetPassword(c *fiber.Ctx) error {
+	formData := model.User{}
+	if err := c.BodyParser(&formData); err != nil {
+		return services.ApiJsonResponse(c, entity.Error, "Error occurred", err.Error())
+	}
+
+	// get user by email
+	var user model.User
+	var db = database.GetDbInstance()
+	db.Where("password_token = ?", formData.PasswordToken).First(&user)
+
+	if user.Id == 0 {
+		return services.ApiJsonResponse(c, entity.Error, "User not found or Url expired", nil)
+	}
+
+	// saving user
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(formData.Password), 14)
+	if err != nil {
+		return services.ApiJsonResponse(c, entity.Error, "Error occurred", err.Error())
+	}
+	user.Password = string(hashedPassword)
+	db.Save(&user)
+	return services.ApiJsonResponse(c, entity.Success, "Your password successfully change. Please login to continue", nil)
+}
+
+func UserLogin(c *fiber.Ctx) error {
+	UserLogin, _ := services.GetUserLogin(c)
+	return services.ApiJsonResponse(c, entity.Success, "Logged in user", UserLogin)
 }

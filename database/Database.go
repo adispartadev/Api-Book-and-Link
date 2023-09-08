@@ -19,7 +19,6 @@ func GetDbInstance() *gorm.DB {
 	port := os.Getenv("DB_PORT")
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8&parseTime=True", username, password, host, port, name)
-	fmt.Println(dsn)
 
 	DB, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {

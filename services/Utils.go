@@ -3,7 +3,17 @@ package services
 import (
 	"fmt"
 	"github.com/go-playground/validator/v10"
+	"math/rand"
 )
+
+func RandSeq(n int) string {
+	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456789")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
+}
 
 type (
 	XValidator struct {
