@@ -10,5 +10,6 @@ func AppApiRoutes(app *fiber.App) {
 	api := app.Group("/api")
 
 	api.Get("/", apiController.HelloWorld)
-
+	api.Post("/register", apiController.RegisterUser)
+	api.Post("/login", apiController.LoginUser)
 }

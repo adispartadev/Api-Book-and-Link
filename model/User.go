@@ -4,9 +4,9 @@ import "time"
 
 type User struct {
 	Id        uint       `gorm:"primaryKey" json:"id"`
-	FullName  string     `json:"full_name"`
+	FullName  string     `json:"full_name" form:"full_name"`
 	Email     string     `json:"email"`
 	Password  string     `json:"password"`
-	CreatedAt time.Time  `gorm:"default:current_timestamp" json:"created_at"`
-	UpdatedAt *time.Time `gorm:"default:current_timestamp" json:"updated_at"`
+	CreatedAt time.Time  `gorm:"default:CURRENT_TIMESTAMP;type:timestamp;not null" json:"created_at"`
+	UpdatedAt *time.Time `gorm:"type:timestamp" json:"updated_at"`
 }

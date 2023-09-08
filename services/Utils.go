@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -17,7 +18,7 @@ type (
 	}
 )
 
-func (v XValidator) Validate(data interface{}) []XValidatorErrorResponse {
+func ValidateRequest(data interface{}) []XValidatorErrorResponse {
 	validationErrors := []XValidatorErrorResponse{}
 	var validate = validator.New()
 
@@ -35,6 +36,8 @@ func (v XValidator) Validate(data interface{}) []XValidatorErrorResponse {
 			validationErrors = append(validationErrors, elem)
 		}
 	}
+
+	fmt.Println(validationErrors)
 
 	return validationErrors
 }

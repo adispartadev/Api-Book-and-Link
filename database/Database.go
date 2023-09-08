@@ -1,6 +1,7 @@
 package database
 
 import (
+	"api.go/model"
 	"fmt"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -24,5 +25,8 @@ func GetDbInstance() *gorm.DB {
 	if err != nil {
 		panic("Failed to connect database")
 	}
+
+	DB.AutoMigrate(&model.User{})
+
 	return DB
 }
