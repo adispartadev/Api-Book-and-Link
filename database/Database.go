@@ -25,7 +25,7 @@ func GetDbInstance() *gorm.DB {
 		panic("Failed to connect database")
 	}
 
-	DB.AutoMigrate(&model.User{})
+	DB.AutoMigrate(&model.User{}, &model.Product{}, &model.BlackListToken{})
 
 	return DB
 }

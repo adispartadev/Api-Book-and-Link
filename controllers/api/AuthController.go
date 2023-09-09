@@ -9,40 +9,63 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"os"
+	"strings"
 	"time"
 )
 
 func RegisterUser(c *fiber.Ctx) error {
 
-	user := model.User{}
-	if err := c.BodyParser(&user); err != nil {
-		return services.ApiJsonResponse(c, entity.Error, "Error occurred", err)
+	// validation rule
+	type FormDataStrct struct {
+		FullName        string `json:"full_name" form:"full_name" validate:"required"`
+		Email           string `json:"email" form:"email" validate:"required"`
+		Password        string `json:"password" form:"password" validate:"required"`
+		PasswordConfirm string `json:"password_confirm" form:"password_confirm" validate:"required,eqfield=Password"`
+	}
+
+	// validating requet
+	var formData = FormDataStrct{}
+	validationStatus, errorField, message := services.ValidatingRequest(c, &formData)
+	if validationStatus == false {
+		return services.ApiJsonResponse(c, entity.Error, message, errorField)
 	}
 
 	var db = database.GetDbInstance()
 
 	// validating email
 	var userExists model.User
-	db.Where("email = ?", user.Email).First(&userExists)
+	db.Where("email = ?", formData.Email).First(&userExists)
 	if userExists.Id != 0 {
 		return services.ApiJsonResponse(c, entity.Error, "Email is already used", nil)
 	}
 
 	// saving user
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), 14)
+	user := model.User{}
+	user.FullName = formData.FullName
+	user.Email = formData.Email
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(formData.Password), 14)
 	if err != nil {
 		return services.ApiJsonResponse(c, entity.Error, "Error occurred", err.Error())
 	}
 	user.Password = string(hashedPassword)
 	db.Save(&user)
+
 	return services.ApiJsonResponse(c, entity.Success, "Registered successfully", nil)
 }
 
 // Login A User
 func LoginUser(c *fiber.Ctx) error {
-	formData := model.User{}
-	if err := c.BodyParser(&formData); err != nil {
-		return services.ApiJsonResponse(c, entity.Error, "Error occurred", err.Error())
+	// validation rule
+	type FormDataStrct struct {
+		Email    string `json:"email" form:"email" validate:"required"`
+		Password string `json:"password" form:"password" validate:"required"`
+	}
+
+	// validating requet
+	var formData = FormDataStrct{}
+	validationStatus, errorField, message := services.ValidatingRequest(c, &formData)
+	if validationStatus == false {
+		return services.ApiJsonResponse(c, entity.Error, message, errorField)
 	}
 
 	// get user by email
@@ -62,7 +85,7 @@ func LoginUser(c *fiber.Ctx) error {
 
 	// created JWT Key
 	secret := os.Getenv("JWT_SECRET")
-	expirationTime := time.Now().Add(60 * 24 * 30 * 6 * time.Minute)
+	expirationTime := time.Now().Add(time.Hour * 24)
 	var jwtKey = []byte(secret)
 
 	claims := &entity.JwtClaims{
@@ -87,9 +110,17 @@ func LoginUser(c *fiber.Ctx) error {
 }
 
 func ForgotPassword(c *fiber.Ctx) error {
-	formData := model.User{}
-	if err := c.BodyParser(&formData); err != nil {
-		return services.ApiJsonResponse(c, entity.Error, "Error occurred", err.Error())
+
+	// validation rule
+	type FormDataStrct struct {
+		Email string `json:"email" form:"email" validate:"required"`
+	}
+
+	// validating requet
+	var formData = FormDataStrct{}
+	validationStatus, errorField, message := services.ValidatingRequest(c, &formData)
+	if validationStatus == false {
+		return services.ApiJsonResponse(c, entity.Error, message, errorField)
 	}
 
 	// get user by email
@@ -105,7 +136,7 @@ func ForgotPassword(c *fiber.Ctx) error {
 	user.PasswordToken = randString
 	db.Save(&user)
 
-	var link = os.Getenv("FRONT_PAGE_BASE_URL") + "/reset-password/" + randString
+	var link = os.Getenv("FRONT_PAGE_BASE_URL") + "/auth/reset-password/" + randString
 	err := services.SendEmail(user.Email, "Forgot Password", "Please open "+link+" to reset your password.")
 	if err != nil {
 		return services.ApiJsonResponse(c, entity.Error, "Error occurred", err.Error())
@@ -114,15 +145,24 @@ func ForgotPassword(c *fiber.Ctx) error {
 }
 
 func ResetPassword(c *fiber.Ctx) error {
-	formData := model.User{}
-	if err := c.BodyParser(&formData); err != nil {
-		return services.ApiJsonResponse(c, entity.Error, "Error occurred", err.Error())
+	// validation rule
+	type FormDataStrct struct {
+		Password        string `json:"password" form:"password" validate:"required"`
+		PasswordConfirm string `json:"password_confirm" form:"password_confirm" validate:"required,eqfield=Password"`
+		Token           string `json:"token" form:"token" validate:"required"`
+	}
+
+	// validating requet
+	var formData = FormDataStrct{}
+	validationStatus, errorField, message := services.ValidatingRequest(c, &formData)
+	if validationStatus == false {
+		return services.ApiJsonResponse(c, entity.Error, message, errorField)
 	}
 
 	// get user by email
 	var user model.User
 	var db = database.GetDbInstance()
-	db.Where("password_token = ?", formData.PasswordToken).First(&user)
+	db.Where("password_token = ?", formData.Token).First(&user)
 
 	if user.Id == 0 {
 		return services.ApiJsonResponse(c, entity.Error, "User not found or Url expired", nil)
@@ -141,4 +181,17 @@ func ResetPassword(c *fiber.Ctx) error {
 func UserLogin(c *fiber.Ctx) error {
 	UserLogin, _ := services.GetUserLogin(c)
 	return services.ApiJsonResponse(c, entity.Success, "Logged in user", UserLogin)
+}
+
+func LogoutUser(c *fiber.Ctx) error {
+	tokenString := c.Get("Authorization")
+	tokenString = strings.Replace(tokenString, "Bearer ", "", 1)
+
+	var blackListToken model.BlackListToken
+	blackListToken.Token = tokenString
+
+	var db = database.GetDbInstance()
+	db.Save(&blackListToken)
+
+	return services.ApiJsonResponse(c, entity.Success, "Logout success", nil)
 }

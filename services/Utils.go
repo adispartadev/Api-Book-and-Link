@@ -1,9 +1,11 @@
 package services
 
 import (
-	"fmt"
 	"github.com/go-playground/validator/v10"
+	"github.com/gofiber/fiber/v2"
 	"math/rand"
+	"reflect"
+	"strings"
 )
 
 func RandSeq(n int) string {
@@ -15,39 +17,48 @@ func RandSeq(n int) string {
 	return string(b)
 }
 
-type (
-	XValidator struct {
-		validator *validator.Validate
+func ValidatingRequest(c *fiber.Ctx, formData interface{}) (status bool, data any, message string) {
+	if err := c.BodyParser(&formData); err != nil {
+		return false, err.Error(), "Error occured"
 	}
 
-	XValidatorErrorResponse struct {
-		Error       bool
-		FailedField string
-		Tag         string
-		Value       interface{}
-	}
-)
+	validate := validator.New()
+	fieldErrors := make(map[string]string)
 
-func ValidateRequest(data interface{}) []XValidatorErrorResponse {
-	validationErrors := []XValidatorErrorResponse{}
-	var validate = validator.New()
-
-	errs := validate.Struct(data)
-	if errs != nil {
-		for _, err := range errs.(validator.ValidationErrors) {
-			// In this case data object is actually holding the User struct
-			var elem XValidatorErrorResponse
-
-			elem.FailedField = err.Field() // Export struct field name
-			elem.Tag = err.Tag()           // Export struct tag
-			elem.Value = err.Value()       // Export field value
-			elem.Error = true
-
-			validationErrors = append(validationErrors, elem)
+	if err := validate.Struct(formData); err != nil {
+		for _, err := range err.(validator.ValidationErrors) {
+			field := err.Field()
+			fieldName := getFieldJSONName(formData, field)
+			fieldErrors[fieldName] = generateValidationMessage(err.Tag())
 		}
+		return false, fieldErrors, "Validation error"
 	}
 
-	fmt.Println(validationErrors)
+	return true, nil, ""
+}
 
-	return validationErrors
+func getFieldJSONName(s interface{}, fieldName string) string {
+	t := reflect.TypeOf(s)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	field, _ := t.FieldByName(fieldName)
+	jsonTag := field.Tag.Get("json")
+	jsonName := strings.Split(jsonTag, ",")[0]
+
+	return jsonName
+}
+
+func generateValidationMessage(tag string) string {
+	var message string
+	switch tag {
+	case "required":
+		message = "The field is required."
+	case "email":
+		message = "Invalid email format."
+	case "eqfield":
+		message = "Value was not same."
+	}
+	return message
 }

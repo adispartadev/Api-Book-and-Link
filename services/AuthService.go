@@ -18,6 +18,15 @@ func GetUserLogin(c *fiber.Ctx) (model.User, bool) {
 	if tokenString == "" {
 		return UserLogin, false
 	}
+	var db = database.GetDbInstance()
+
+	//check token was in blacklist token
+	var blackListToken model.BlackListToken
+	db.Where("token = ?", tokenString).First(&blackListToken)
+
+	if blackListToken.Id != 0 {
+		return UserLogin, false
+	}
 
 	// check token
 	secret := os.Getenv("JWT_SECRET")
@@ -35,7 +44,6 @@ func GetUserLogin(c *fiber.Ctx) (model.User, bool) {
 	claimResult, _ := token.Claims.(*entity.JwtClaims)
 	IdUser := claimResult.Id
 
-	var db = database.GetDbInstance()
 	db.Where("id = ?", IdUser).First(&UserLogin)
 
 	return UserLogin, true
