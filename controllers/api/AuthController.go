@@ -6,7 +6,6 @@ import (
 	"api.go/model"
 	"api.go/services"
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"os"
 	"strings"
@@ -84,28 +83,23 @@ func LoginUser(c *fiber.Ctx) error {
 	}
 
 	// created JWT Key
-	secret := os.Getenv("JWT_SECRET")
 	expirationTime := time.Now().Add(time.Hour * 24)
-	var jwtKey = []byte(secret)
-
-	claims := &entity.JwtClaims{
-		Id:          int(user.Id),
-		User:        user,
-		GeneratedAt: time.Now(),
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expirationTime),
-		},
+	tokenString, status, errr := services.CreateJwtToken(user, expirationTime, entity.JwtToken)
+	if status == false {
+		return services.ApiJsonResponse(c, entity.Error, "Unable to generate access token", errr)
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(jwtKey)
-	if err != nil {
-		return services.ApiJsonResponse(c, entity.Error, "Error occurred", err.Error())
+	// create refresh token
+	expirationTime = time.Now().Add(time.Hour * 24 * 30) // 1 month
+	refreshTokenString, status, errr := services.CreateJwtToken(user, expirationTime, entity.JwtRefresh)
+	if status == false {
+		return services.ApiJsonResponse(c, entity.Error, "Unable to generate refresh token", errr)
 	}
 
 	return services.ApiJsonResponse(c, entity.Success, "Login successfully", map[string]any{
-		"token": tokenString,
-		"user":  user,
+		"token":         tokenString,
+		"refresh_token": refreshTokenString,
+		"user":          user,
 	})
 }
 
@@ -179,7 +173,7 @@ func ResetPassword(c *fiber.Ctx) error {
 }
 
 func UserLogin(c *fiber.Ctx) error {
-	UserLogin, _ := services.GetUserLogin(c)
+	UserLogin, _ := services.GetUserLogin(c, entity.JwtToken)
 	return services.ApiJsonResponse(c, entity.Success, "Logged in user", UserLogin)
 }
 
@@ -194,4 +188,29 @@ func LogoutUser(c *fiber.Ctx) error {
 	db.Save(&blackListToken)
 
 	return services.ApiJsonResponse(c, entity.Success, "Logout success", nil)
+}
+
+func RefreshUserToken(c *fiber.Ctx) error {
+	user, _ := services.GetUserLogin(c, entity.JwtRefresh)
+
+	// created JWT Key
+	expirationTime := time.Now().Add(time.Hour * 24)
+	tokenString, status, errr := services.CreateJwtToken(user, expirationTime, entity.JwtToken)
+	if status == false {
+		return services.ApiJsonResponse(c, entity.Error, "Unable to generate access token", errr)
+	}
+
+	// create refresh token
+	expirationTime = time.Now().Add(time.Hour * 24 * 30) // 1 month
+	refreshTokenString, status, errr := services.CreateJwtToken(user, expirationTime, entity.JwtRefresh)
+	if status == false {
+		return services.ApiJsonResponse(c, entity.Error, "Unable to generate refresh token", errr)
+	}
+
+	return services.ApiJsonResponse(c, entity.Success, "Login successfully", map[string]any{
+		"token":         tokenString,
+		"refresh_token": refreshTokenString,
+		"user":          user,
+	})
+
 }

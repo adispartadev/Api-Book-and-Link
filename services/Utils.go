@@ -18,7 +18,7 @@ func RandSeq(n int) string {
 }
 
 func ValidatingRequest(c *fiber.Ctx, formData interface{}) (status bool, data any, message string) {
-	if err := c.BodyParser(&formData); err != nil {
+	if err := c.BodyParser(formData); err != nil {
 		return false, err.Error(), "Error occured"
 	}
 

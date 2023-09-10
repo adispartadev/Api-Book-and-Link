@@ -8,9 +8,10 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"os"
 	"strings"
+	"time"
 )
 
-func GetUserLogin(c *fiber.Ctx) (model.User, bool) {
+func GetUserLogin(c *fiber.Ctx, tokenType string) (model.User, bool) {
 	var UserLogin model.User
 
 	tokenString := c.Get("Authorization")
@@ -29,6 +30,50 @@ func GetUserLogin(c *fiber.Ctx) (model.User, bool) {
 	}
 
 	// check token
+	parseStatus, claimResult, _ := ParseJwtToken(tokenString)
+
+	if parseStatus == false {
+		return UserLogin, false
+	}
+
+	// token type
+	if claimResult.TokenType != tokenType {
+		return UserLogin, false
+	}
+
+	IdUser := claimResult.Id
+	db.Where("id = ?", IdUser).First(&UserLogin)
+
+	return UserLogin, true
+}
+
+func CreateJwtToken(user model.User, expirationTime time.Time, tokenType string) (tokenString string, status bool, error any) {
+	// created JWT Key
+	secret := os.Getenv("JWT_SECRET")
+	var jwtKey = []byte(secret)
+
+	claims := &entity.JwtClaims{
+		Id:          int(user.Id),
+		User:        user,
+		GeneratedAt: time.Now(),
+		TokenType:   tokenType,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(jwtKey)
+	if err != nil {
+		return "", false, err.Error()
+	}
+
+	return tokenString, true, nil
+
+}
+
+func ParseJwtToken(tokenString string) (status bool, claim *entity.JwtClaims, data any) {
+	// check token
 	secret := os.Getenv("JWT_SECRET")
 	var jwtKey = []byte(secret)
 
@@ -38,13 +83,9 @@ func GetUserLogin(c *fiber.Ctx) (model.User, bool) {
 	})
 
 	if err != nil {
-		return UserLogin, false
+		return false, claims, err
 	}
 
 	claimResult, _ := token.Claims.(*entity.JwtClaims)
-	IdUser := claimResult.Id
-
-	db.Where("id = ?", IdUser).First(&UserLogin)
-
-	return UserLogin, true
+	return true, claimResult, nil
 }

@@ -14,6 +14,7 @@ func AppApiRoutes(app *fiber.App) {
 	api.Get("/user", middleware.AuthApi(), apiController.UserLogin)
 	api.Post("/register", apiController.RegisterUser)
 	api.Post("/login", apiController.LoginUser)
+	api.Post("/refresh-token", middleware.AuthApiRefresh(), apiController.RefreshUserToken)
 	api.Post("/forgot-password", apiController.ForgotPassword)
 	api.Post("/reset-password", apiController.ResetPassword)
 

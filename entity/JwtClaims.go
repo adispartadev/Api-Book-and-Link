@@ -10,5 +10,6 @@ type JwtClaims struct {
 	Id          int `json:"id"`
 	User        model.User
 	GeneratedAt time.Time
+	TokenType   string
 	jwt.RegisteredClaims
 }
