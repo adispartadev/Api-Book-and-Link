@@ -178,14 +178,35 @@ func UserLogin(c *fiber.Ctx) error {
 }
 
 func LogoutUser(c *fiber.Ctx) error {
+
+	// validation rule
+	type FormDataStrct struct {
+		RefreshToken string `json:"refresh_token" form:"refresh_token" validate:"required"`
+	}
+
+	// validating requet
+	var formData = FormDataStrct{}
+	validationStatus, errorField, message := services.ValidatingRequest(c, &formData)
+	if validationStatus == false {
+		return services.ApiJsonResponse(c, entity.Error, message, errorField)
+	}
+
+	var db = database.GetDbInstance()
+
+	// add token to blacklist data
 	tokenString := c.Get("Authorization")
 	tokenString = strings.Replace(tokenString, "Bearer ", "", 1)
 
 	var blackListToken model.BlackListToken
 	blackListToken.Token = tokenString
-
-	var db = database.GetDbInstance()
 	db.Save(&blackListToken)
+
+	// add refresh token to blacklist data
+	var blackListRefreshToken model.BlackListToken
+	tokenRString := formData.RefreshToken
+	tokenRString = strings.Replace(tokenRString, "Bearer ", "", 1)
+	blackListRefreshToken.Token = tokenRString
+	db.Save(&blackListRefreshToken)
 
 	return services.ApiJsonResponse(c, entity.Success, "Logout success", nil)
 }
